@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visitor Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-slate-50">
+    <div id="root"></div>
+
+    <script type="text/babel" data-type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDbt7DDol8jNbi3HERDBQ0QoKePszS_ziY",
+            authDomain: "guard-d75d6.firebaseapp.com",
+            projectId: "guard-d75d6",
+            storageBucket: "guard-d75d6.firebasestorage.app",
+            messagingSenderId: "610027210849",
+            appId: "1:610027210849:web:cae057a05b36ebccc10220"
+        };
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = 'dashboard-web-v1';
+
+        function VisitorApp() {
+            const [visitors, setVisitors] = React.useState([]);
+
+            React.useEffect(() => {
+                signInAnonymously(auth);
+                const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'visitors'), orderBy('date', 'desc'));
+                onSnapshot(q, s => setVisitors(s.docs.map(d => ({id: d.id, ...d.data()}))));
+            }, []);
+
+            const checkIn = async (e) => {
+                e.preventDefault();
+                const fd = new FormData(e.target);
+                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'visitors'), {
+                    name: fd.get('name'), company: fd.get('company'), host: fd.get('host'), purpose: fd.get('purpose'),
+                    status: 'Check-In', timeIn: new Date().toISOString(), date: new Date().toISOString()
+                });
+                e.target.reset();
+            };
+
+            const checkOut = async (id) => {
+                if(confirm("Tamu keluar?")) {
+                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'visitors', id), { status: 'Closed', timeOut: new Date().toISOString() });
+                }
+            }
+
+            return (
+                <div className="max-w-5xl mx-auto p-6">
+                    <div className="flex justify-between items-center mb-6">
+                        <h1 className="text-2xl font-bold text-slate-800"><i className="fas fa-id-card text-emerald-600 mr-2"></i> Buku Tamu Digital</h1>
+                        <a href="index.html" className="text-blue-600 hover:underline">Kembali ke Dashboard</a>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="bg-white p-6 rounded-xl shadow-md h-fit">
+                            <h2 className="font-bold mb-4">Registrasi Tamu Baru</h2>
+                            <form onSubmit={checkIn} className="space-y-3">
+                                <input name="name" required placeholder="Nama Lengkap" className="w-full border p-2 rounded"/>
+                                <input name="company" required placeholder="Instansi / Perusahaan" className="w-full border p-2 rounded"/>
+                                <input name="host" required placeholder="Bertemu Siapa" className="w-full border p-2 rounded"/>
+                                <select name="purpose" className="w-full border p-2 rounded"><option>Meeting</option><option>Interview</option><option>Kurir/Paket</option></select>
+                                <button className="w-full bg-emerald-600 text-white py-2 rounded font-bold hover:bg-emerald-700">CHECK IN</button>
+                            </form>
+                        </div>
+
+                        <div className="md:col-span-2 bg-white p-6 rounded-xl shadow-md">
+                            <h2 className="font-bold mb-4">Daftar Tamu Hari Ini</h2>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm text-left">
+                                    <thead className="bg-slate-100 uppercase text-xs">
+                                        <tr><th className="p-3">Nama</th><th className="p-3">Waktu</th><th className="p-3">Status</th><th className="p-3">Aksi</th></tr>
+                                    </thead>
+                                    <tbody>
+                                        {visitors.map(v => (
+                                            <tr key={v.id} className="border-b hover:bg-slate-50">
+                                                <td className="p-3 font-medium">{v.name}<br/><span className="text-xs text-slate-500">{v.company}</span></td>
+                                                <td className="p-3">{new Date(v.timeIn).toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'})}</td>
+                                                <td className="p-3"><span className={`px-2 py-1 rounded text-xs ${v.status==='Check-In'?'bg-green-100 text-green-800':'bg-gray-100'}`}>{v.status}</span></td>
+                                                <td className="p-3">
+                                                    {v.status === 'Check-In' && <button onClick={()=>checkOut(v.id)} className="text-red-600 border border-red-200 px-2 py-1 rounded text-xs hover:bg-red-50">Check Out</button>}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<VisitorApp />);
+    </script>
+</body>
+</html>
